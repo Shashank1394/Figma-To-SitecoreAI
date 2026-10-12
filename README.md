@@ -130,3 +130,13 @@ Gemini is asked for JSON output, and the complete content-model shape is validat
 Do not add functionality outside the defined scope of reading one selected design, inferring its Sitecore field model, creating the required SitecoreAI definitions, and verifying those definitions.
 
 Gemini connection test uses `maxOutputTokens: 128` so Gemini 3.x can complete internal thinking and return visible text. The previous budget of 8 could produce HTTP 200 without a text candidate.
+
+## Demo UI workflow
+
+The studio UI is organized as three dedicated stage screens in one focused workspace:
+
+1. **Source design** — validate the selected Figma frame URL, read the design context, and check Figma, Gemini, and Sitecore configuration.
+2. **Analyze fields** — run Gemini analysis, review and edit the component/template names and inferred fields, inspect evidence and warnings, and move back to the source as needed.
+3. **Sitecore output** — preview the proposed data source template and JSON rendering configuration. The screen explicitly identifies itself as a preview because Sitecore authoring mutations are not implemented yet; it does not claim to create items.
+
+The redesign uses larger typography, stronger contrast, roomier forms and field cards, responsive layouts, clear stage navigation, and visible completion indicators. The underlying Figma and Gemini workflow APIs and the scope of the POC are unchanged.
