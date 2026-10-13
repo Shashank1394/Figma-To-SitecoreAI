@@ -1,4 +1,5 @@
 import { contentModelSchema, MAX_DESIGN_CONTEXT_LENGTH, type ContentModel } from "@/lib/content-model";
+import { normalizeCtaFields } from "@/lib/cta-inference";
 
 export type DesignContextForAnalysis = {
   fileKey: string;
@@ -31,6 +32,14 @@ export class ContentModelService {
       throw new Error("OpenRouter's proposal did not match the required content-model schema. Analyze the design again or select a more specific frame.");
     }
 
-    return result.data;
+    // Ensure each visually distinct CTA in Figma is represented by its own
+    // General Link field, even if the LLM collapses repeated labels into one text field.
+    const normalizedModel = normalizeCtaFields(result.data, input.text);
+    const validatedModel = contentModelSchema.safeParse(normalizedModel);
+    if (!validatedModel.success) {
+      throw new Error("The normalized content model did not match the required Sitecore schema. Analyze the design again or review the CTA fields.");
+    }
+
+    return validatedModel.data;
   }
 }

@@ -199,6 +199,7 @@ $red-soft: #fff0f1;
 .fieldEditorGrid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .fullField { grid-column: 1 / -1; }
 .fieldRationale { margin: 16px 0 0; color: #53617a; font-size: 14px; line-height: 1.6; }
+.fieldTypeHelp { margin: 12px 0 0; padding: 10px 12px; border: 1px solid #d8e7ff; border-radius: 9px; background: #f3f7ff; color: #244b83; font-size: 13px; line-height: 1.55; }
 .fieldEvidence { display: grid; gap: 7px; margin-top: 15px; padding: 13px 14px; border: 1px solid #edf0f5; border-radius: 10px; background: #f8fafc; }
 .fieldEvidence span { color: #8793a8; font-size: 10px; letter-spacing: 1px; font-weight: 850; }
 .fieldEvidence code { color: #4a5871; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; white-space: normal; }

@@ -10,6 +10,7 @@ export const selectedTemplateFolderSchema = z.object({
 
 export const sitecoreComponentCreationRequestSchema = z.object({
   selectedTemplateFolder: selectedTemplateFolderSchema,
+  selectedRenderingFolder: selectedTemplateFolderSchema,
   contentModel: contentModelSchema,
 });
 
@@ -20,6 +21,7 @@ export type SitecoreCreationItemKind =
   | "data-template"
   | "repeated-item-template"
   | "data-folder-template"
+  | "data-folder-standard-values"
   | "rendering-parameters-folder"
   | "rendering-parameters-template"
   | "rendering-folder"

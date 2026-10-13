@@ -17,5 +17,5 @@ export async function POST() {
     latencyMs: result.latencyMs,
   });
 
-  return NextResponse.json({ ...result, renderingsParentPath: config.sitecoreRenderingsParentPath }, { status: result.ok ? 200 : 502 });
+  return NextResponse.json(result, { status: result.ok ? 200 : 502 });
 }

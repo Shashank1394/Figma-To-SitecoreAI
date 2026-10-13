@@ -66,7 +66,6 @@ type SitecoreConnectionTest = {
   code: string;
   message: string;
   siteCount?: number;
-  renderingsParentPath?: string;
 };
 
 type DesignContext = {
@@ -93,7 +92,7 @@ type TemplateTreeApiResponse = {
   message?: string;
 };
 
-async function requestTemplateTreeNode(path: string): Promise<SitecoreTemplateTreeNode> {
+async function requestSitecoreTreeNode(path: string): Promise<SitecoreTemplateTreeNode> {
   const response = await fetch("/api/sitecore-template-tree", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -102,12 +101,12 @@ async function requestTemplateTreeNode(path: string): Promise<SitecoreTemplateTr
   });
   const body = await response.json() as TemplateTreeApiResponse;
   if (!response.ok || !body.ok || !body.node) {
-    throw new Error(body.message ?? `Could not read the Sitecore template tree (HTTP ${response.status}).`);
+    throw new Error(body.message ?? `Could not read the Sitecore folder tree (HTTP ${response.status}).`);
   }
   return body.node;
 }
 
-function replaceTemplateTreeNode(
+function replaceSitecoreTreeNode(
   current: SitecoreTemplateTreeNode,
   targetPath: string,
   replacement: SitecoreTemplateTreeNode,
@@ -115,14 +114,14 @@ function replaceTemplateTreeNode(
   if (current.path === targetPath) return replacement;
   return {
     ...current,
-    children: current.children.map((child) => replaceTemplateTreeNode(child, targetPath, replacement)),
+    children: current.children.map((child) => replaceSitecoreTreeNode(child, targetPath, replacement)),
   };
 }
 
 const stages: { number: Stage; title: string; shortTitle: string; description: string }[] = [
   { number: 1, title: "Source design", shortTitle: "Source", description: "Choose a frame in Figma" },
   { number: 2, title: "Analyze fields", shortTitle: "Content model", description: "Let AI propose the fields" },
-  { number: 3, title: "Template destination", shortTitle: "Sitecore", description: "Choose the parent folder" },
+  { number: 3, title: "Sitecore destinations", shortTitle: "Sitecore", description: "Choose both parent folders" },
 ];
 
 function StateIndicator({ state }: { state: Integration["state"] }) {
@@ -178,11 +177,18 @@ export function StudioPage() {
   const [selectedTemplateFolder, setSelectedTemplateFolder] = useState<SelectedTemplateFolder | null>(null);
   const [expandedTemplatePaths, setExpandedTemplatePaths] = useState<Set<string>>(new Set());
   const [loadingTemplatePaths, setLoadingTemplatePaths] = useState<Set<string>>(new Set());
+  const [renderingTreeStatus, setRenderingTreeStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle");
+  const [renderingTreeRoot, setRenderingTreeRoot] = useState<SitecoreTemplateTreeNode | null>(null);
+  const [renderingTreeError, setRenderingTreeError] = useState("");
+  const [selectedRenderingFolder, setSelectedRenderingFolder] = useState<SelectedTemplateFolder | null>(null);
+  const [expandedRenderingPaths, setExpandedRenderingPaths] = useState<Set<string>>(new Set());
+  const [loadingRenderingPaths, setLoadingRenderingPaths] = useState<Set<string>>(new Set());
   const [creationStatus, setCreationStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [creationResult, setCreationResult] = useState<SitecoreComponentCreationResult | null>(null);
   const [creationError, setCreationError] = useState("");
   const [creationConfirmed, setCreationConfirmed] = useState(false);
   const templateTreeLoadStarted = useRef(false);
+  const renderingTreeLoadStarted = useRef(false);
 
   function resetCreationState() {
     setCreationStatus("idle");
@@ -358,9 +364,15 @@ export function StudioPage() {
 
   function navigateToStage(stage: Stage) {
     setActiveStage(stage);
-    if (stage === 3 && contentModel && !templateTreeLoadStarted.current) {
-      templateTreeLoadStarted.current = true;
-      void reloadTemplateTree();
+    if (stage === 3 && contentModel) {
+      if (!templateTreeLoadStarted.current) {
+        templateTreeLoadStarted.current = true;
+        void reloadTemplateTree();
+      }
+      if (!renderingTreeLoadStarted.current) {
+        renderingTreeLoadStarted.current = true;
+        void reloadRenderingTree();
+      }
     }
   }
 
@@ -368,7 +380,7 @@ export function StudioPage() {
     setTemplateTreeStatus("loading");
     setTemplateTreeError("");
     try {
-      const root = await requestTemplateTreeNode("/sitecore/templates");
+      const root = await requestSitecoreTreeNode("/sitecore/templates");
       setTemplateTreeRoot(root);
       setExpandedTemplatePaths(new Set([root.path]));
       setTemplateTreeStatus("loaded");
@@ -399,8 +411,8 @@ export function StudioPage() {
     setLoadingTemplatePaths((current) => new Set(current).add(node.path));
     setTemplateTreeError("");
     try {
-      const loadedNode = await requestTemplateTreeNode(node.path);
-      setTemplateTreeRoot((current) => current ? replaceTemplateTreeNode(current, node.path, loadedNode) : loadedNode);
+      const loadedNode = await requestSitecoreTreeNode(node.path);
+      setTemplateTreeRoot((current) => current ? replaceSitecoreTreeNode(current, node.path, loadedNode) : loadedNode);
       setExpandedTemplatePaths((current) => new Set(current).add(node.path));
     } catch (error) {
       setTemplateTreeError(error instanceof Error ? error.message : `Could not expand ${node.path}.`);
@@ -425,8 +437,69 @@ export function StudioPage() {
     });
   }
 
+  async function reloadRenderingTree() {
+    setRenderingTreeStatus("loading");
+    setRenderingTreeError("");
+    try {
+      const root = await requestSitecoreTreeNode("/sitecore/layout/Renderings");
+      setRenderingTreeRoot(root);
+      setExpandedRenderingPaths(new Set([root.path]));
+      setRenderingTreeStatus("loaded");
+      renderingTreeLoadStarted.current = true;
+    } catch (error) {
+      setRenderingTreeError(error instanceof Error ? error.message : "Could not load the Sitecore rendering tree.");
+      setRenderingTreeStatus("error");
+    }
+  }
+
+  async function toggleRenderingTreeNode(node: SitecoreTemplateTreeNode) {
+    if (!node.hasChildren) return;
+    const isExpanded = expandedRenderingPaths.has(node.path);
+    if (isExpanded) {
+      setExpandedRenderingPaths((current) => {
+        const next = new Set(current);
+        next.delete(node.path);
+        return next;
+      });
+      return;
+    }
+
+    if (node.childrenLoaded) {
+      setExpandedRenderingPaths((current) => new Set(current).add(node.path));
+      return;
+    }
+
+    setLoadingRenderingPaths((current) => new Set(current).add(node.path));
+    setRenderingTreeError("");
+    try {
+      const loadedNode = await requestSitecoreTreeNode(node.path);
+      setRenderingTreeRoot((current) => current ? replaceSitecoreTreeNode(current, node.path, loadedNode) : loadedNode);
+      setExpandedRenderingPaths((current) => new Set(current).add(node.path));
+    } catch (error) {
+      setRenderingTreeError(error instanceof Error ? error.message : `Could not expand ${node.path}.`);
+    } finally {
+      setLoadingRenderingPaths((current) => {
+        const next = new Set(current);
+        next.delete(node.path);
+        return next;
+      });
+    }
+  }
+
+  function selectRenderingFolder(node: SitecoreTemplateTreeNode) {
+    if (!node.selectable) return;
+    resetCreationState();
+    setRenderingTreeError("");
+    setSelectedRenderingFolder({
+      itemId: node.itemId,
+      name: node.name,
+      path: node.path,
+      templateFullName: node.templateFullName,
+    });
+  }
+
   async function createSitecoreStructure() {
-    if (!contentModel || !selectedTemplateFolder || !creationConfirmed) return;
+    if (!contentModel || !selectedTemplateFolder || !selectedRenderingFolder || !creationConfirmed) return;
 
     setCreationStatus("loading");
     setCreationError("");
@@ -436,7 +509,7 @@ export function StudioPage() {
       const response = await fetch("/api/sitecore-create-component", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ selectedTemplateFolder, contentModel }),
+        body: JSON.stringify({ selectedTemplateFolder, selectedRenderingFolder, contentModel }),
         cache: "no-store",
       });
       const body = await response.json() as SitecoreComponentCreationResult;
@@ -451,10 +524,16 @@ export function StudioPage() {
       setCreationConfirmed(false);
       // Refresh the selected branch so the user can immediately see the new template folder.
       try {
-        const updatedNode = await requestTemplateTreeNode(selectedTemplateFolder.path);
-        setTemplateTreeRoot((current) => current ? replaceTemplateTreeNode(current, selectedTemplateFolder.path, updatedNode) : current);
+        const updatedNode = await requestSitecoreTreeNode(selectedTemplateFolder.path);
+        setTemplateTreeRoot((current) => current ? replaceSitecoreTreeNode(current, selectedTemplateFolder.path, updatedNode) : current);
       } catch (error) {
         setTemplateTreeError(error instanceof Error ? error.message : "Created items, but the selected template-tree branch could not be refreshed.");
+      }
+      try {
+        const updatedRenderingNode = await requestSitecoreTreeNode(selectedRenderingFolder.path);
+        setRenderingTreeRoot((current) => current ? replaceSitecoreTreeNode(current, selectedRenderingFolder.path, updatedRenderingNode) : current);
+      } catch (error) {
+        setRenderingTreeError(error instanceof Error ? error.message : "Created items, but the selected rendering-tree branch could not be refreshed.");
       }
     } catch (error) {
       setCreationStatus("error");
@@ -462,22 +541,26 @@ export function StudioPage() {
     }
   }
 
-  function renderTemplateTreeNode(node: SitecoreTemplateTreeNode, depth = 0): ReactNode {
-    const expanded = expandedTemplatePaths.has(node.path);
-    const loading = loadingTemplatePaths.has(node.path);
-    const selected = selectedTemplateFolder?.path === node.path;
+  function renderSitecoreTreeNode(node: SitecoreTemplateTreeNode, kind: "templates" | "renderings", depth = 0): ReactNode {
+    const isTemplateTree = kind === "templates";
+    const expanded = (isTemplateTree ? expandedTemplatePaths : expandedRenderingPaths).has(node.path);
+    const loading = (isTemplateTree ? loadingTemplatePaths : loadingRenderingPaths).has(node.path);
+    const selectedFolder = isTemplateTree ? selectedTemplateFolder : selectedRenderingFolder;
+    const selected = selectedFolder?.path === node.path;
+    const toggle = isTemplateTree ? toggleTemplateTreeNode : toggleRenderingTreeNode;
+    const select = isTemplateTree ? selectTemplateFolder : selectRenderingFolder;
     return (
-      <div className={styles.templateTreeNode} key={node.path}>
+      <div className={styles.templateTreeNode} key={`${kind}:${node.path}`}>
         <div className={`${styles.templateTreeRow} ${selected ? styles.templateTreeRowSelected : ""}`} style={{ paddingLeft: `${10 + depth * 18}px` }} role="treeitem" aria-expanded={node.hasChildren ? expanded : undefined} aria-selected={selected}>
           {node.hasChildren ? (
-            <button type="button" className={styles.templateTreeToggle} onClick={() => void toggleTemplateTreeNode(node)} aria-label={`${expanded ? "Collapse" : "Expand"} ${node.name}`} disabled={loading}>
+            <button type="button" className={styles.templateTreeToggle} onClick={() => void toggle(node)} aria-label={`${expanded ? "Collapse" : "Expand"} ${node.name}`} disabled={loading}>
               {loading ? <LoaderCircle size={15} className={styles.spin} /> : expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
             </button>
           ) : <span className={styles.templateTreeToggleSpacer} />}
           {node.selectable ? (
-            <button type="button" className={styles.templateTreeFolderButton} onClick={() => selectTemplateFolder(node)} aria-pressed={selected}>
+            <button type="button" className={styles.templateTreeFolderButton} onClick={() => select(node)} aria-pressed={selected}>
               {expanded ? <FolderOpen size={17} /> : <Folder size={17} />}
-              <span className={styles.templateTreeItemCopy}><strong>{node.name}</strong><small>{node.path === "/sitecore/templates" ? "Templates root" : node.templateName}</small></span>
+              <span className={styles.templateTreeItemCopy}><strong>{node.name}</strong><small>{node.path === "/sitecore/templates" ? "Templates root" : node.path === "/sitecore/layout/Renderings" ? "Renderings root" : node.templateName}</small></span>
             </button>
           ) : (
             <span className={styles.templateTreeNonSelectable}>
@@ -487,7 +570,7 @@ export function StudioPage() {
           )}
           {selected && <CheckCircle2 size={17} className={styles.templateTreeSelectedIcon} aria-label="Selected destination" />}
         </div>
-        {expanded && node.children.length > 0 && <div className={styles.templateTreeChildren} role="group">{node.children.map((child) => renderTemplateTreeNode(child, depth + 1))}</div>}
+        {expanded && node.children.length > 0 && <div className={styles.templateTreeChildren} role="group">{node.children.map((child) => renderSitecoreTreeNode(child, kind, depth + 1))}</div>}
         {expanded && node.hasChildren && node.childrenLoaded && node.children.length === 0 && <div className={styles.templateTreeEmptyChildren} style={{ paddingLeft: `${42 + depth * 18}px` }}>This folder has no child items.</div>}
       </div>
     );
@@ -515,6 +598,7 @@ export function StudioPage() {
             </select>
           </label>
         </div>
+        {field.type === "General Link" && <p className={styles.fieldTypeHelp}>General Link stores both the editable button/link text and its destination. Set the destination when entering content in Sitecore.</p>}
         <p className={styles.fieldRationale}>{field.rationale}</p>
         <div className={styles.fieldEvidence}><span>DESIGN EVIDENCE</span><code>{field.sourceEvidence}</code></div>
         {field.requiresReview && <div className={styles.fieldReview}><AlertTriangle size={15} /><span>Review recommended before creating Sitecore items.</span></div>}
@@ -756,19 +840,19 @@ export function StudioPage() {
           {activeStage === 3 && (
             <>
               <StageHeading
-                eyebrow="03 / TEMPLATE DESTINATION"
-                title={<>Choose the <span className={styles.titleAccent}>template location.</span></>}
-                description="Choose where the component's template folder belongs, review the complete set of Sitecore items, then explicitly confirm creation."
-                right={<StatusPill kind={selectedTemplateFolder ? "success" : "warning"}>{selectedTemplateFolder ? "Destination selected" : "Select destination"}</StatusPill>}
+                eyebrow="03 / SITECORE DESTINATIONS"
+                title={<>Choose both <span className={styles.titleAccent}>Sitecore locations.</span></>}
+                description="Select the parent for the component templates and the separate parent for the JSON Rendering folder, then review and confirm the complete creation plan."
+                right={<StatusPill kind={selectedTemplateFolder && selectedRenderingFolder ? "success" : "warning"}>{selectedTemplateFolder && selectedRenderingFolder ? "Both destinations selected" : "Select both destinations"}</StatusPill>}
               />
               {!contentModel || analysisState !== "loaded" ? (
                 <section className={`${styles.panel} ${styles.emptyStage}`}><div className={styles.emptyStageIcon}><Layers3 size={30} /></div><h2>Your content model is not ready yet</h2><p>Analyze a Figma design and review the proposed fields before previewing the Sitecore definitions.</p><button type="button" className={styles.buttonPrimary} onClick={() => setActiveStage(designContext ? 2 : 1)}>{designContext ? <BrainCircuit size={18} /> : <ArrowLeft size={18} />}{designContext ? "Go to content model" : "Back to source design"} <ArrowRight size={17} /></button></section>
               ) : (
                 <>
-                  <section className={styles.outputReadyBanner}><div className={styles.outputReadyIcon}>{creationStatus === "success" ? <CheckCircle2 size={25} /> : <Layers3 size={25} />}</div><div><StatusPill kind={creationStatus === "success" ? "success" : "neutral"}>{creationStatus === "success" ? "Created and verified" : "Model prepared"}</StatusPill><h2>{creationStatus === "success" ? `${contentModel.componentName} was created in SitecoreAI` : `${contentModel.componentName} is ready for authoring review`}</h2><p>The model contains {contentModel.fields.length} data field(s), {contentModel.repeatedStructures.length} repeated item template(s), and {contentModel.renderingParameters.length} rendering parameter field(s). Choose a parent folder and review the complete creation plan before confirming.</p></div></section>
+                  <section className={styles.outputReadyBanner}><div className={styles.outputReadyIcon}>{creationStatus === "success" ? <CheckCircle2 size={25} /> : <Layers3 size={25} />}</div><div><StatusPill kind={creationStatus === "success" ? "success" : "neutral"}>{creationStatus === "success" ? "Created and verified" : "Model prepared"}</StatusPill><h2>{creationStatus === "success" ? `${contentModel.componentName} was created in SitecoreAI` : `${contentModel.componentName} is ready for authoring review`}</h2><p>The model contains {contentModel.fields.length} data field(s), {contentModel.repeatedStructures.length} repeated item template(s), and {contentModel.renderingParameters.length} rendering parameter field(s). Choose both parent folders and review the complete creation plan before confirming.</p></div></section>
                   <section className={`${styles.panel} ${styles.templateDestinationPanel}`}>
                     <div className={styles.templateDestinationHeader}>
-                      <div><div className={styles.templateDestinationEyebrow}><FolderOpen size={16} /> SITECORE TEMPLATE TREE</div><h2>Where should the component folder live?</h2><p>Choose a parent under <code>/sitecore/templates</code>. FrameForge will create a new component folder here and place its data template, repeated item templates, and optional rendering-parameters folder inside it.</p></div>
+                      <div><div className={styles.templateDestinationEyebrow}><FolderOpen size={16} /> SITECORE TEMPLATE TREE</div><h2>Where should the component folder live?</h2><p>Choose a parent under <code>/sitecore/templates</code>. FrameForge creates the component folder, data template, data-folder template with restricted Standard Values, repeated item templates, and optional rendering-parameters template here.</p></div>
                       <button type="button" className={styles.buttonSecondary} onClick={() => void reloadTemplateTree()} disabled={templateTreeStatus === "loading"}>{templateTreeStatus === "loading" ? <LoaderCircle size={16} className={styles.spin} /> : <RefreshCw size={16} />}{templateTreeStatus === "loading" ? "Loading tree…" : "Refresh tree"}</button>
                     </div>
                     {templateTreeStatus === "loading" && <div className={styles.templateTreeMessage}><LoaderCircle size={19} className={styles.spin} /><span>Loading live template folders from SitecoreAI…</span></div>}
@@ -777,7 +861,7 @@ export function StudioPage() {
                       <div className={styles.templateTreeLayout}>
                         <div className={styles.templateTreeBrowser}>
                           <div className={styles.templateTreeBrowserHeader}><strong>Template content tree</strong><span>{templateTreeStatus === "loaded" ? "Live from SitecoreAI" : "Connecting…"}</span></div>
-                          <div className={styles.templateTreeList} role="tree" aria-label="Sitecore template folders">{renderTemplateTreeNode(templateTreeRoot)}</div>
+                          <div className={styles.templateTreeList} role="tree" aria-label="Sitecore template folders">{renderSitecoreTreeNode(templateTreeRoot, "templates")}</div>
                           <p className={styles.templateTreeHint}>Only template folders can be selected. Use the arrow to expand a folder.</p>
                         </div>
                         <aside className={styles.templateTreeSelection} aria-live="polite">
@@ -787,7 +871,7 @@ export function StudioPage() {
                             <h3>{selectedTemplateFolder.name}</h3>
                             <code className={styles.templateTreePath}>{selectedTemplateFolder.path}</code>
                             <dl><div><dt>Parent item ID</dt><dd>{selectedTemplateFolder.itemId}</dd></div><div><dt>Folder template</dt><dd>{selectedTemplateFolder.templateFullName}</dd></div></dl>
-                            <div className={styles.templateTreeSelectionConfirmed}><CheckCircle2 size={16} /><span>A new component template folder will be created here. The JSON Rendering item will be created separately under the configured Renderings tree.</span></div>
+                            <div className={styles.templateTreeSelectionConfirmed}><CheckCircle2 size={16} /><span>A new component template folder will be created here. Choose the separate rendering destination below for the JSON Rendering folder.</span></div>
                           </> : <>
                             <h3>No folder selected</h3><p>Select a folder from the tree. FrameForge will verify the item ID and path again before creating any Sitecore items.</p>
                           </>}
@@ -795,9 +879,38 @@ export function StudioPage() {
                       </div>
                     )}
                   </section>
+                  <section className={`${styles.panel} ${styles.templateDestinationPanel}`}>
+                    <div className={styles.templateDestinationHeader}>
+                      <div><div className={styles.templateDestinationEyebrow}><Component size={16} /> SITECORE RENDERINGS TREE</div><h2>Where should the rendering folder live?</h2><p>Choose a parent under <code>/sitecore/layout/Renderings</code>. FrameForge will create a component-specific Rendering Folder here, then place the JSON Rendering definition inside it.</p></div>
+                      <button type="button" className={styles.buttonSecondary} onClick={() => void reloadRenderingTree()} disabled={renderingTreeStatus === "loading"}>{renderingTreeStatus === "loading" ? <LoaderCircle size={16} className={styles.spin} /> : <RefreshCw size={16} />}{renderingTreeStatus === "loading" ? "Loading tree…" : "Refresh tree"}</button>
+                    </div>
+                    {renderingTreeStatus === "loading" && <div className={styles.templateTreeMessage}><LoaderCircle size={19} className={styles.spin} /><span>Loading live rendering folders from SitecoreAI…</span></div>}
+                    {renderingTreeError && <div className={styles.templateTreeError} role="alert"><AlertTriangle size={18} /><div><strong>Could not load the rendering tree</strong><p>{renderingTreeError}</p><button type="button" className={styles.textButton} onClick={() => void reloadRenderingTree()}>Try again</button></div></div>}
+                    {renderingTreeRoot && (
+                      <div className={styles.templateTreeLayout}>
+                        <div className={styles.templateTreeBrowser}>
+                          <div className={styles.templateTreeBrowserHeader}><strong>Rendering content tree</strong><span>{renderingTreeStatus === "loaded" ? "Live from SitecoreAI" : "Connecting…"}</span></div>
+                          <div className={styles.templateTreeList} role="tree" aria-label="Sitecore rendering folders">{renderSitecoreTreeNode(renderingTreeRoot, "renderings")}</div>
+                          <p className={styles.templateTreeHint}>Only Rendering Folders can be selected. Use the arrow to expand a folder.</p>
+                        </div>
+                        <aside className={styles.templateTreeSelection} aria-live="polite">
+                          <div className={styles.templateTreeSelectionIcon}>{selectedRenderingFolder ? <CheckCircle2 size={22} /> : <Component size={22} />}</div>
+                          <span className={styles.templateTreeSelectionLabel}>SELECTED RENDERING DESTINATION</span>
+                          {selectedRenderingFolder ? <>
+                            <h3>{selectedRenderingFolder.name}</h3>
+                            <code className={styles.templateTreePath}>{selectedRenderingFolder.path}</code>
+                            <dl><div><dt>Parent item ID</dt><dd>{selectedRenderingFolder.itemId}</dd></div><div><dt>Folder template</dt><dd>{selectedRenderingFolder.templateFullName}</dd></div></dl>
+                            <div className={styles.templateTreeSelectionConfirmed}><CheckCircle2 size={16} /><span>The component-specific Rendering Folder and JSON Rendering will be created beneath this location.</span></div>
+                          </> : <>
+                            <h3>No rendering folder selected</h3><p>Select a folder from the Renderings tree. FrameForge will verify its item ID and path before creating any items.</p>
+                          </>}
+                        </aside>
+                      </div>
+                    )}
+                  </section>
                   <div className={styles.outputCardsGrid}>
                     <article className={styles.outputCard}><div className={`${styles.outputCardIcon} ${styles.templateTone}`}><Layers3 size={23} /></div><div className={styles.outputCardTop}><StatusPill kind={creationStatus === "success" ? "success" : "neutral"}>{creationStatus === "success" ? "Created" : "Planned"}</StatusPill><span>01</span></div><h2>Data source template</h2><p>Stores the editorial content inferred from the Figma design.</p><div className={styles.outputProperty}><span>Template name</span><strong>{creationPlan?.dataTemplateName ?? contentModel.templateName}</strong></div><div className={styles.outputProperty}><span>Component folder</span><strong>{selectedTemplateFolder && creationPlan ? `${selectedTemplateFolder.path}/${creationPlan.componentFolderName}` : "Select a folder above"}</strong></div><div className={styles.outputProperty}><span>Fields</span><strong>{contentModel.fields.length}</strong></div><div className={styles.outputProperty}><span>Repeated item templates</span><strong>{contentModel.repeatedStructures.length}</strong></div></article>
-                    <article className={styles.outputCard}><div className={`${styles.outputCardIcon} ${styles.renderingTone}`}><Component size={23} /></div><div className={styles.outputCardTop}><StatusPill kind={creationStatus === "success" ? "success" : "neutral"}>{creationStatus === "success" ? "Created" : "Planned"}</StatusPill><span>02</span></div><h2>JSON rendering</h2><p>Connects the Sitecore rendering to the component's data source template. It is stored in the Renderings tree, not inside the template folder.</p><div className={styles.outputProperty}><span>Component name</span><strong>{contentModel.componentName}</strong></div><div className={styles.outputProperty}><span>Data source</span><strong>{creationPlan?.dataTemplateName ?? contentModel.templateName}</strong></div><div className={styles.outputProperty}><span>Rendering area</span><strong>{sitecoreTest?.renderingsParentPath ?? "/sitecore/layout/Renderings/Feature"}</strong></div><div className={styles.outputProperty}><span>Frontend component</span><strong>Not generated in this POC</strong></div></article>
+                    <article className={styles.outputCard}><div className={`${styles.outputCardIcon} ${styles.renderingTone}`}><Component size={23} /></div><div className={styles.outputCardTop}><StatusPill kind={creationStatus === "success" ? "success" : "neutral"}>{creationStatus === "success" ? "Created" : "Planned"}</StatusPill><span>02</span></div><h2>JSON rendering</h2><p>Connects the Sitecore rendering to the component's data source template. It is stored in the Renderings tree, not inside the template folder.</p><div className={styles.outputProperty}><span>Component name</span><strong>{contentModel.componentName}</strong></div><div className={styles.outputProperty}><span>Data source</span><strong>{creationPlan?.dataTemplateName ?? contentModel.templateName}</strong></div><div className={styles.outputProperty}><span>Rendering area</span><strong>{selectedRenderingFolder?.path ?? "Select a rendering folder above"}</strong></div><div className={styles.outputProperty}><span>Frontend component</span><strong>Not generated in this POC</strong></div></article>
                     <article className={styles.outputCard}><div className={`${styles.outputCardIcon} ${styles.parametersTone}`}><SlidersHorizontal size={23} /></div><div className={styles.outputCardTop}><StatusPill kind={contentModel.renderingParameters.length > 0 ? creationStatus === "success" ? "success" : "neutral" : "warning"}>{contentModel.renderingParameters.length > 0 ? creationStatus === "success" ? "Created" : "Planned" : "Skipped"}</StatusPill><span>03</span></div><h2>Rendering parameters</h2><p>Created only when the reviewed model contains author-controlled presentation options.</p><div className={styles.parametersNote}>{contentModel.renderingParameters.length > 0 ? `${creationPlan?.renderingParametersFolderName} folder and ${creationPlan?.renderingParametersTemplateName} template · ${contentModel.renderingParameters.length} parameter field(s).` : "No rendering parameters were inferred. FrameForge will skip this folder and template."}</div></article>
                   </div>
                   <section className={styles.creationPanel}>
@@ -805,27 +918,30 @@ export function StudioPage() {
                       <div><div className={styles.templateDestinationEyebrow}><Layers3 size={16} /> CREATION PLAN</div><h2>Sitecore structure to create</h2><p>Review the item names and locations. Existing items are never overwritten; the API checks every planned path before creating anything.</p></div>
                       <StatusPill kind={creationStatus === "success" ? "success" : creationStatus === "loading" ? "neutral" : creationStatus === "error" ? "error" : "warning"}>{creationStatus === "success" ? "Verified in Sitecore" : creationStatus === "loading" ? "Creating…" : creationStatus === "error" ? "Needs attention" : "Awaiting confirmation"}</StatusPill>
                     </div>
-                    {selectedTemplateFolder && creationPlan ? (
+                    {selectedTemplateFolder && selectedRenderingFolder && creationPlan ? (
                       <div className={styles.creationTree}>
                         <div className={styles.creationTreeRoot}><FolderOpen size={21} /><div><strong>{creationPlan.componentFolderName}</strong><code>{selectedTemplateFolder.path}/{creationPlan.componentFolderName}</code></div><span>Template folder</span></div>
                         <div className={styles.creationTreeChildren}>
                           {creationPlan.repeatedItemTemplateNames.map((name, index) => <div className={styles.creationTreeRow} key={`${name}-${index}`}><FileCode2 size={18} /><div><strong>{name}</strong><small>Repeated item template · {contentModel.repeatedStructures[index]?.fields.length ?? 0} field(s)</small></div></div>)}
                           <div className={styles.creationTreeRow}><FileCode2 size={18} /><div><strong>{creationPlan.dataTemplateName}</strong><small>Data source template · {contentModel.fields.length} field(s)</small></div></div>
-                          {creationPlan.dataFolderTemplateName && <div className={styles.creationTreeRow}><Folder size={18} /><div><strong>{creationPlan.dataFolderTemplateName}</strong><small>Data folder template · based on Sitecore Common Folder</small></div></div>}
+                          {creationPlan.dataFolderTemplateName && <>
+                            <div className={styles.creationTreeRow}><Folder size={18} /><div><strong>{creationPlan.dataFolderTemplateName}</strong><small>Data folder template · only allows the {creationPlan.dataTemplateName} template</small></div></div>
+                            <div className={`${styles.creationTreeRow} ${styles.creationTreeNested}`}><FileCode2 size={17} /><div><strong>__Standard Values</strong><small>Insert options restricted to {creationPlan.dataTemplateName} via __Masters</small></div></div>
+                          </>}
                           {creationPlan.renderingParametersFolderName && <div className={styles.creationTreeRow}><FolderOpen size={18} /><div><strong>{creationPlan.renderingParametersFolderName}</strong><small>Folder containing the rendering-parameters template</small></div></div>}
                           {creationPlan.renderingParametersFolderName && creationPlan.renderingParametersTemplateName && <div className={`${styles.creationTreeRow} ${styles.creationTreeNested}`}><SlidersHorizontal size={18} /><div><strong>{creationPlan.renderingParametersTemplateName}</strong><small>Rendering parameters template · {contentModel.renderingParameters.length} field(s)</small></div></div>}
                         </div>
-                        <div className={styles.creationRenderingsNote}><Component size={20} /><div><strong>JSON Rendering — separate Sitecore tree</strong><p>{sitecoreTest?.renderingsParentPath ?? "/sitecore/layout/Renderings/Feature"}/{creationPlan.renderingFolderName}/{creationPlan.renderingName}</p><small>Linked to the data source template and, when present, the rendering-parameters template.</small></div></div>
+                        <div className={styles.creationRenderingsNote}><Component size={20} /><div><strong>JSON Rendering — separate Sitecore tree</strong><p>{selectedRenderingFolder.path}/{creationPlan.renderingFolderName}/{creationPlan.renderingName}</p><small>Linked to the data source template and, when present, the rendering-parameters template.</small></div></div>
                       </div>
-                    ) : <div className={styles.optionalEmptyNote}>Select a template parent folder above to preview the full creation paths.</div>}
+                    ) : <div className={styles.optionalEmptyNote}>Select both a template parent folder and a rendering parent folder above to preview the full creation paths.</div>}
 
                     {creationStatus === "loading" && <div className={styles.creationNotice}><LoaderCircle size={19} className={styles.spin} /><div><strong>Creating Sitecore items…</strong><p>FrameForge is creating the planned items in dependency order and verifying them with read-back queries. Keep this window open.</p></div></div>}
                     {creationStatus === "error" && <div className={`${styles.creationNotice} ${styles.creationNoticeError}`} role="alert"><AlertTriangle size={20} /><div><strong>Sitecore structure creation stopped</strong><p>{creationError || creationResult?.message || "The Sitecore API did not complete the creation request."}</p>{creationResult?.createdItems?.length ? <><p>{creationResult.createdItems.length} item(s) were created before the failure; they were not rolled back.</p><div className={styles.createdItemList}>{creationResult.createdItems.map((item) => <div key={`${item.path}-${item.itemId}`}><strong>{item.name}</strong><code>{item.path}</code><small>ID: {item.itemId}</small></div>)}</div></> : null}</div></div>}
                     {creationStatus === "success" && creationResult?.ok && <div className={`${styles.creationNotice} ${styles.creationNoticeSuccess}`} role="status"><CheckCircle2 size={21} /><div><strong>Created and verified {creationResult.createdItems.length} Sitecore item(s)</strong><p>{creationResult.message}</p><div className={styles.createdItemList}>{creationResult.createdItems.map((item) => <div key={`${item.path}-${item.itemId}`}><strong>{item.name} <small>· {item.kind}</small></strong><code>{item.path}</code><small>ID: {item.itemId}</small></div>)}</div></div></div>}
 
                     {creationStatus !== "success" && !(creationStatus === "error" && (creationResult?.createdItems.length ?? 0) > 0) && <>
-                      <label className={styles.creationConfirm}><input type="checkbox" checked={creationConfirmed} onChange={(event) => setCreationConfirmed(event.target.checked)} disabled={creationStatus === "loading" || !selectedTemplateFolder} /><span><strong>I reviewed this structure and approve creating these items in SitecoreAI.</strong><small>FrameForge will not publish items or generate frontend code. If a request partially fails, created items are reported and left in place for inspection.</small></span></label>
-                      <div className={styles.creationActions}><button type="button" className={styles.buttonPrimary} onClick={() => void createSitecoreStructure()} disabled={!selectedTemplateFolder || !creationConfirmed || creationStatus === "loading" || !contentModel || !creationPlan}>{creationStatus === "loading" ? <LoaderCircle size={18} className={styles.spin} /> : <CheckCircle2 size={18} />}{creationStatus === "loading" ? "Creating Sitecore items…" : creationStatus === "error" ? "Retry creation" : "Create Sitecore structure"}</button><span>Only items shown in the plan above will be created.</span></div>
+                      <label className={styles.creationConfirm}><input type="checkbox" checked={creationConfirmed} onChange={(event) => setCreationConfirmed(event.target.checked)} disabled={creationStatus === "loading" || !selectedTemplateFolder || !selectedRenderingFolder} /><span><strong>I reviewed this structure and approve creating these items in SitecoreAI.</strong><small>FrameForge will not publish items or generate frontend code. If a request partially fails, created items are reported and left in place for inspection.</small></span></label>
+                      <div className={styles.creationActions}><button type="button" className={styles.buttonPrimary} onClick={() => void createSitecoreStructure()} disabled={!selectedTemplateFolder || !selectedRenderingFolder || !creationConfirmed || creationStatus === "loading" || !contentModel || !creationPlan}>{creationStatus === "loading" ? <LoaderCircle size={18} className={styles.spin} /> : <CheckCircle2 size={18} />}{creationStatus === "loading" ? "Creating Sitecore items…" : creationStatus === "error" ? "Retry creation" : "Create Sitecore structure"}</button><span>Only items shown in the plan above will be created.</span></div>
                     </>}
                   </section>
 

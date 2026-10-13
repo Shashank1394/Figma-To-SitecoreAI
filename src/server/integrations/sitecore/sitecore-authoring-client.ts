@@ -40,6 +40,13 @@ export class SitecoreGraphQLRequestError extends Error {
 type CachedAccessToken = { value: string; expiresAt: number };
 const accessTokenCache = new Map<string, CachedAccessToken>();
 
+function isAllowedSitecoreTreePath(path: string): boolean {
+  const allowedRoots = ["/sitecore/templates", "/sitecore/layout/Renderings"];
+  return allowedRoots.some((root) => path === root || path.startsWith(`${root}/`))
+    && !path.split("/").includes("..")
+    && !path.includes("\\");
+}
+
 export type SitecoreConnectionResult = {
   ok: boolean;
   host: string;
@@ -62,7 +69,7 @@ export type SitecoreTemplateTreeResult = {
   node?: SitecoreTemplateTreeNode;
 };
 
-/** Owns read-only SitecoreAI connection checks and browsing under /sitecore/templates. */
+/** Owns SitecoreAI connectivity checks and safe, read-only browsing of template and rendering folders. */
 export class SitecoreAuthoringClient {
   constructor(
     private readonly config: Pick<ServerConfig, "sitecoreHost" | "sitecoreClientId" | "sitecoreClientSecret">,
@@ -195,11 +202,8 @@ export class SitecoreAuthoringClient {
     if (host === "Invalid host") {
       return fail("INVALID_HOST", "SITECORE_AI_CM_HOST must be a valid HTTPS SitecoreAI environment URL.");
     }
-    if (
-      (normalizedPath !== "/sitecore/templates" && !normalizedPath.startsWith("/sitecore/templates/")) ||
-      normalizedPath.split("/").includes("..") || normalizedPath.includes("\\")
-    ) {
-      return fail("INVALID_TEMPLATE_PATH", "Only folders inside /sitecore/templates can be browsed.", 400);
+    if (!isAllowedSitecoreTreePath(normalizedPath)) {
+      return fail("INVALID_TREE_PATH", "Only folders inside /sitecore/templates or /sitecore/layout/Renderings can be browsed.", 400);
     }
 
     try {
@@ -254,7 +258,7 @@ export class SitecoreAuthoringClient {
         checkedAt,
         latencyMs: Date.now() - startedAt,
         statusCode: response.status,
-        code: "TEMPLATE_TREE_LOADED",
+        code: "SITECORE_TREE_LOADED",
         message: `Loaded ${node.children.length} direct child item(s) from ${node.path}.`,
         node,
       };
@@ -390,7 +394,12 @@ export class SitecoreAuthoringClient {
       .filter((child): child is JsonObject => Boolean(child) && typeof child === "object" && !Array.isArray(child))
       .map((child) => this.toTemplateTreeNode(child));
     const identity = `${templateName} ${templateFullName}`.toLowerCase();
-    const selectable = path === "/sitecore/templates" || identity.includes("template folder") || identity.includes("templates folder") || templateName.toLowerCase() === "folder";
+    const isTemplatesTree = path === "/sitecore/templates" || path.startsWith("/sitecore/templates/");
+    const isRenderingTree = path === "/sitecore/layout/Renderings" || path.startsWith("/sitecore/layout/Renderings/");
+    const isTreeRoot = path === "/sitecore/templates" || path === "/sitecore/layout/Renderings";
+    const isTemplateFolder = identity.includes("template folder") || identity.includes("templates folder") || templateName.toLowerCase() === "folder";
+    const isRenderingFolder = identity.includes("rendering folder") || templateName.toLowerCase() === "rendering folder";
+    const selectable = isTreeRoot || (isTemplatesTree && isTemplateFolder) || (isRenderingTree && isRenderingFolder);
 
     return {
       itemId,

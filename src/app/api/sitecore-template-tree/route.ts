@@ -18,19 +18,19 @@ export async function POST(request: Request) {
   const requestedPath = body && typeof body.path === "string" ? body.path.trim() : "";
   const path = requestedPath || "/sitecore/templates";
 
-  if (
-    (path !== "/sitecore/templates" && !path.startsWith("/sitecore/templates/")) ||
-    path.split("/").includes("..") || path.includes("\\")
-  ) {
+  const allowedRoots = ["/sitecore/templates", "/sitecore/layout/Renderings"];
+  const isAllowedPath = allowedRoots.some((root) => path === root || path.startsWith(`${root}/`))
+    && !path.split("/").includes("..") && !path.includes("\\");
+  if (!isAllowedPath) {
     return NextResponse.json({
       ok: false,
-      code: "INVALID_TEMPLATE_PATH",
-      message: "Only folders inside /sitecore/templates can be browsed.",
+      code: "INVALID_TREE_PATH",
+      message: "Only folders inside /sitecore/templates or /sitecore/layout/Renderings can be browsed.",
     }, { status: 400 });
   }
 
   const result = await new SitecoreAuthoringClient(getServerConfig()).getTemplateTreeNode(path);
-  console.info("[FrameForge] Sitecore template tree", {
+  console.info("[FrameForge] Sitecore folder tree", {
     ok: result.ok,
     path,
     statusCode: result.statusCode,

@@ -42,6 +42,22 @@ const CREATE_ITEM_MUTATION = `mutation CreateSitecoreItem($input: CreateItemInpu
   }
 }`;
 
+const UPDATE_ITEM_MUTATION = `mutation UpdateSitecoreItem($input: UpdateItemInput!) {
+  updateItem(input: $input) {
+    item { itemId name path }
+  }
+}`;
+
+const STANDARD_VALUES_FIELDS_QUERY = `query StandardValuesFields($itemId: String!) {
+  item(where: { itemId: $itemId }) {
+    itemId
+    path
+    fields(excludeStandardFields: false, ownFields: false, first: 300) {
+      nodes { name value }
+    }
+  }
+}`;
+
 const JSON_RENDERING_TEMPLATE_QUERY = `query JsonRenderingTemplate {
   availableRenderings(where: { database: "master" }) {
     itemId
@@ -55,10 +71,7 @@ type JsonRecord = Record<string, unknown>;
 type SitecoreItem = { itemId: string; name: string; path: string; templateName?: string; templateId?: string; templateFullName?: string };
 
 export class SitecoreComponentCreationService {
-  constructor(
-    private readonly client: SitecoreAuthoringClient,
-    private readonly renderingsParentPath: string,
-  ) {}
+  constructor(private readonly client: SitecoreAuthoringClient) {}
 
   async create(request: SitecoreComponentCreationRequest): Promise<SitecoreComponentCreationResult> {
     const startedAt = Date.now();
@@ -88,9 +101,9 @@ export class SitecoreComponentCreationService {
         return fail("INVALID_TEMPLATE_DESTINATION", "The selected template path contains an invalid path segment.", 400, currentStep);
       }
 
-      const renderingsRootPath = normalizeSitecorePath(this.renderingsParentPath);
-      if (!isRenderingPath(renderingsRootPath) || renderingsRootPath.split("/").includes("..") || renderingsRootPath.includes("\\")) {
-        return fail("INVALID_RENDERINGS_DESTINATION", "SITECORE_AI_RENDERINGS_PARENT_PATH must be inside /sitecore/layout/Renderings.", 400, currentStep);
+      const renderingRootPath = normalizeSitecorePath(request.selectedRenderingFolder.path);
+      if (!isRenderingPath(renderingRootPath) || renderingRootPath.split("/").includes("..") || renderingRootPath.includes("\\")) {
+        return fail("INVALID_RENDERINGS_DESTINATION", "Choose a rendering-folder destination inside /sitecore/layout/Renderings.", 400, currentStep);
       }
 
       const model = request.contentModel;
@@ -103,7 +116,7 @@ export class SitecoreComponentCreationService {
       const parametersTemplatePath = parametersFolderPath && plan.renderingParametersTemplateName
         ? `${parametersFolderPath}/${plan.renderingParametersTemplateName}`
         : undefined;
-      const renderingFolderPath = `${renderingsRootPath}/${plan.renderingFolderName}`;
+      const renderingFolderPath = `${renderingRootPath}/${plan.renderingFolderName}`;
       const renderingPath = `${renderingFolderPath}/${plan.renderingName}`;
 
       currentStep = "Verify the selected folder";
@@ -115,6 +128,17 @@ export class SitecoreComponentCreationService {
       const selectedIsTemplateFolder = selectedPath === "/sitecore/templates" || selectedIdentity.includes("template folder") || selectedIdentity.includes("templates folder") || selectedFolder.templateName?.toLowerCase() === "folder";
       if (!selectedIsTemplateFolder) {
         return fail("INVALID_TEMPLATE_DESTINATION", "The selected item is not a template folder. Choose a folder from the /sitecore/templates tree.", 400, currentStep);
+      }
+
+      currentStep = "Verify the selected rendering destination";
+      const renderingParent = await this.getItemByPath(renderingRootPath);
+      if (!renderingParent || renderingParent.itemId.toLowerCase() !== request.selectedRenderingFolder.itemId.toLowerCase()) {
+        return fail("RENDERING_DESTINATION_CHANGED", "The selected rendering folder could not be verified against SitecoreAI. Refresh the rendering tree and select the folder again.", 409, currentStep);
+      }
+      const renderingIdentity = `${renderingParent.templateName ?? ""} ${renderingParent.templateFullName ?? ""}`.toLowerCase();
+      const selectedIsRenderingFolder = renderingRootPath === "/sitecore/layout/Renderings" || renderingIdentity.includes("rendering folder");
+      if (!selectedIsRenderingFolder) {
+        return fail("INVALID_RENDERINGS_DESTINATION", "The selected item is not a Rendering Folder. Choose a folder from the /sitecore/layout/Renderings tree.", 400, currentStep);
       }
 
       currentStep = "Validate the creation plan";
@@ -138,17 +162,12 @@ export class SitecoreComponentCreationService {
         "/sitecore/templates/System/Layout/Renderings/Rendering Folder",
         "The standard Rendering Folder template could not be found. No items were created.",
       );
-      const renderingParent = await this.requireItem(
-        renderingsRootPath,
-        `The configured rendering parent folder ${renderingsRootPath} does not exist. No items were created.`,
-      );
-      let dataFolderBaseTemplate: SitecoreItem | undefined;
-      if (dataFolderTemplatePath) {
-        dataFolderBaseTemplate = await this.requireItem(
-          "/sitecore/templates/Common/Folder",
-          "The common Folder template is required for repeated-content data folders, but it could not be found. No items were created.",
-        );
-      }
+      const dataFolderBaseTemplate = dataFolderTemplatePath
+        ? await this.requireItem(
+            "/sitecore/templates/Common/Folder",
+            "The common Folder template is required for repeated-content data folders, but it could not be found. No items were created.",
+          )
+        : undefined;
       let standardRenderingParametersTemplate: SitecoreItem | undefined;
       if (parametersTemplatePath) {
         standardRenderingParametersTemplate = await this.requireItem(
@@ -213,15 +232,32 @@ export class SitecoreComponentCreationService {
 
       if (plan.dataFolderTemplateName && dataFolderTemplatePath && dataFolderBaseTemplate) {
         currentStep = `Create data folder template: ${plan.dataFolderTemplateName}`;
-        const item = await this.createItemTemplate({
+        const dataFolderTemplate = await this.createItemTemplate({
           parentId: componentFolder.itemId,
           name: plan.dataFolderTemplateName,
           path: dataFolderTemplatePath,
           baseTemplates: [dataFolderBaseTemplate.itemId],
           sectionName: "Data",
           fields: [],
+          createStandardValuesItem: true,
         });
-        createdItems.push({ kind: "data-folder-template", ...item });
+        createdItems.push({ kind: "data-folder-template", ...dataFolderTemplate });
+
+        currentStep = "Verify the data-folder Standard Values item";
+        const standardValuesPath = `${dataFolderTemplatePath}/__Standard Values`;
+        const standardValues = await this.getItemByPath(standardValuesPath);
+        if (!standardValues) {
+          throw new CreationError(
+            `Sitecore did not create the expected Standard Values item at ${standardValuesPath}. The component template and data-folder template were created, but insert options were not configured.`,
+            "STANDARD_VALUES_NOT_CREATED",
+            502,
+          );
+        }
+        createdItems.push({ kind: "data-folder-standard-values", name: standardValues.name, path: standardValues.path, itemId: standardValues.itemId });
+
+        currentStep = "Restrict data-folder insert options to the data template";
+        await this.updateItemField(standardValues.itemId, "__Masters", toSitecoreGuid(dataTemplate.itemId));
+        await this.verifyDataFolderInsertOption(standardValues.itemId, dataTemplate.itemId, standardValuesPath);
       }
 
       if (plan.renderingParametersFolderName && parametersFolderPath && parametersTemplatePath && standardRenderingParametersTemplate) {
@@ -253,7 +289,7 @@ export class SitecoreComponentCreationService {
       createdItems.push(renderingFolder);
 
       currentStep = "Create the JSON Rendering definition";
-      const datasourceLocation = dataFolderTemplatePath && plan.dataFolderTemplateName
+      const datasourceLocation = plan.dataFolderTemplateName
         ? `query:$site/*[@@name='Data']/*[@@templatename='${plan.dataFolderTemplateName}']|query:$sharedSites/*[@@name='Data']/*[@@templatename='${plan.dataFolderTemplateName}']`
         : "query:$site/*[@@name='Data']|query:$sharedSites/*[@@name='Data']";
       const renderingFields = [
@@ -375,6 +411,7 @@ export class SitecoreComponentCreationService {
     baseTemplates: string[];
     sectionName: string;
     fields: ContentField[];
+    createStandardValuesItem?: boolean;
   }): Promise<Omit<CreatedSitecoreItem, "kind">> {
     const sections = input.fields.length > 0
       ? [{
@@ -395,6 +432,7 @@ export class SitecoreComponentCreationService {
         name: input.name,
         baseTemplates: input.baseTemplates,
         sections,
+        createStandardValuesItem: input.createStandardValuesItem ?? false,
         database: "master",
         language: "en",
       },
@@ -404,6 +442,42 @@ export class SitecoreComponentCreationService {
     const templateId = typeof template?.templateId === "string" ? template.templateId : "";
     if (!templateId) throw new Error(`Sitecore did not return a template ID after creating ${input.path}.`);
     return { name: input.name, path: input.path, itemId: templateId };
+  }
+
+  private async updateItemField(itemId: string, name: string, value: string): Promise<void> {
+    const response = await this.client.requestGraphQL(UPDATE_ITEM_MUTATION, {
+      input: {
+        database: "master",
+        language: "en",
+        itemId,
+        fields: [{ name, value }],
+      },
+    });
+    const payload = asRecord(response.data.updateItem);
+    const item = asRecord(payload?.item);
+    if (!item || typeof item.itemId !== "string" || item.itemId.toLowerCase() !== itemId.toLowerCase()) {
+      throw new Error(`Sitecore did not confirm updating the ${name} field on item ${itemId}.`);
+    }
+  }
+
+  private async verifyDataFolderInsertOption(standardValuesItemId: string, allowedTemplateId: string, path: string): Promise<void> {
+    const response = await this.client.requestGraphQL(STANDARD_VALUES_FIELDS_QUERY, { itemId: standardValuesItemId });
+    const item = asRecord(response.data.item);
+    const fieldsConnection = asRecord(item?.fields);
+    const nodes = Array.isArray(fieldsConnection?.nodes) ? fieldsConnection.nodes : [];
+    const mastersField = nodes
+      .map(asRecord)
+      .find((field) => typeof field?.name === "string" && field.name.toLowerCase() === "__masters");
+    const value = typeof mastersField?.value === "string" ? mastersField.value : "";
+    const actualIds = value.split("|").map((part) => part.replace(/[{}-]/g, "").trim().toUpperCase()).filter(Boolean);
+    const expectedId = allowedTemplateId.replace(/[{}-]/g, "").toUpperCase();
+    if (actualIds.length !== 1 || actualIds[0] !== expectedId) {
+      throw new CreationError(
+        `The insert options on ${path} could not be verified. Expected only ${allowedTemplateId}, but Sitecore returned "${value || "<empty>"}".`,
+        "DATA_FOLDER_INSERT_OPTIONS_NOT_VERIFIED",
+        502,
+      );
+    }
   }
 
   private async createSitecoreItem(input: {
@@ -450,6 +524,14 @@ function isTemplatePath(path: string): boolean {
 
 function isRenderingPath(path: string): boolean {
   return path === "/sitecore/layout/Renderings" || path.startsWith("/sitecore/layout/Renderings/");
+}
+
+function toSitecoreGuid(itemId: string): string {
+  const hex = itemId.replace(/[{}-]/g, "").toUpperCase();
+  if (!/^[0-9A-F]{32}$/.test(hex)) {
+    throw new CreationError(`Sitecore returned an unexpected template ID format: ${itemId}.`, "INVALID_TEMPLATE_ID", 502);
+  }
+  return `{${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}}`;
 }
 
 function asRecord(value: unknown): JsonRecord | undefined {

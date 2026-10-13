@@ -27,7 +27,7 @@ export async function POST(request: Request) {
 
   const config = getServerConfig();
   const client = new SitecoreAuthoringClient(config);
-  const service = new SitecoreComponentCreationService(client, config.sitecoreRenderingsParentPath);
+  const service = new SitecoreComponentCreationService(client);
   const result = await service.create(parsed.data);
 
   console.info("[FrameForge] Sitecore component creation", {
