@@ -6,7 +6,7 @@ export interface FigmaConnectionChecker {
 }
 
 export type IntegrationStatus = {
-  id: "figma" | "gemini" | "sitecore";
+  id: "figma" | "openrouter" | "sitecore";
   name: string;
   state: "connected" | "configured" | "needs-setup" | "unavailable";
   message: string;
@@ -27,7 +27,7 @@ export class ConnectionStatusService {
 
   async check(): Promise<ConnectionStatus> {
     const figmaResult = await this.figmaClient.checkConnection();
-    const geminiConfigured = Boolean(this.config.geminiApiKey);
+    const openRouterConfigured = Boolean(this.config.openRouterApiKey);
     const sitecoreConfigured = Boolean(
       this.config.sitecoreHost && this.config.sitecoreClientId && this.config.sitecoreClientSecret,
     );
@@ -43,19 +43,19 @@ export class ConnectionStatusService {
           details: figmaResult.toolNames,
         },
         {
-          id: "gemini",
-          name: "Google Gemini API",
-          state: geminiConfigured ? "configured" : "needs-setup",
-          message: geminiConfigured
-            ? `API key is configured. Analysis will use ${this.config.geminiModel}.`
-            : "Add GEMINI_API_KEY to .env.local to enable content-model analysis.",
+          id: "openrouter",
+          name: "OpenRouter API",
+          state: openRouterConfigured ? "configured" : "needs-setup",
+          message: openRouterConfigured
+            ? `API key is configured. Analysis will use ${this.config.openRouterModel}. Free-model availability and rate limits may vary.`
+            : "Add OPENROUTER_API_KEY to .env.local to enable content-model analysis.",
         },
         {
           id: "sitecore",
           name: "SitecoreAI Authoring API",
           state: sitecoreConfigured ? "configured" : "needs-setup",
           message: sitecoreConfigured
-            ? "Required environment values are present. API authentication has not been tested yet."
+            ? "Required environment values are present. Run the Sitecore API test to verify OAuth and Authoring API access."
             : "Add the SitecoreAI host and OAuth client credentials to .env.local.",
         },
       ],

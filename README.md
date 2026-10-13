@@ -1,71 +1,90 @@
 # FrameForge — Figma to SitecoreAI POC
 
-A local-first Next.js application for this focused workflow:
+A local-first Next.js application that reads one selected Figma component, asks OpenRouter to infer a reviewable Sitecore content model, and creates the approved template-side structure plus a linked JSON Rendering in SitecoreAI.
 
-1. Accept one selected Figma frame/component URL.
-2. Read the design context through Figma Desktop MCP.
-3. Use Google Gemini to infer a reviewable Sitecore content model.
-4. Let the user review and edit proposed component/template names and field names/types.
-5. In a later stage, create the SitecoreAI data template and JSON rendering through the Authoring and Management API.
-6. Read the created items back and verify the result.
+## Current workflow
 
-**Current scope:** Figma design-context retrieval and Gemini-based content-model analysis. This stage does not write anything to SitecoreAI, publish content, generate frontend code, or create a page layout.
+1. **Source design:** validate a Figma URL, read the selected frame through Figma Desktop MCP, and test OpenRouter and SitecoreAI connections.
+2. **Analyze fields:** send the design context to OpenRouter's free-model router, validate the response with Zod, and review/edit the proposed fields, repeated item structures, and optional rendering parameters.
+3. **Template destination:** browse the live `/sitecore/templates` tree, select a template folder, preview the planned Sitecore structure, explicitly approve creation, and inspect the created item paths and IDs.
 
-## Tech and structure
+## What gets created
 
-- Next.js App Router + TypeScript
-- Sass modules for the UI
-- Figma Desktop MCP TypeScript client
-- Google Gen AI SDK (`@google/genai`)
-- Zod for request and model validation
+Under the selected `/sitecore/templates` folder, FrameForge creates a component template folder and then adds the items required by the reviewed model:
+
+- **Data source template:** always created, with the reviewed editorial fields.
+- **Repeated item templates:** one template per inferred repeated structure, such as `Promo Card` in a `Promo Cards` component.
+- **Data-folder template:** created only when repeated structures need a folder/template location; it inherits from Sitecore's standard Common Folder template.
+- **Rendering Parameters folder and template:** created only when the reviewed model contains explicit author-controlled presentation parameters.
+
+The **JSON Rendering definition is intentionally created in the separate rendering tree**, under `SITECORE_AI_RENDERINGS_PARENT_PATH` (default `/sitecore/layout/Renderings/Feature`). It links to the generated data source template and, when present, the rendering-parameters template. Sitecore template folders and rendering folders are different item types and belong in different trees.
+
+Before any writes, the service verifies the selected parent against the live item ID, resolves required built-in template IDs from the target environment, and checks all planned paths for conflicts. It never overwrites existing items. After creation it reads each created item back and verifies its ID. A multi-mutation workflow cannot be assumed atomic: if a step fails after prior writes, the response lists the items already created and asks the user to inspect them before attempting a retry. Nothing is automatically published, no pages or datasource content items are created, and no frontend code is generated.
+
+## Stack and structure
+
+- Next.js App Router, React, TypeScript
+- Sass modules for styling
+- Figma Desktop MCP for design context
+- OpenRouter Chat Completions API (`openrouter/free`) for LLM analysis
+- SitecoreAI Authoring and Management GraphQL API for template/rendering authoring
+- Zod for request and content-model validation
 
 ```text
 src/
-  app/
-    api/
-      connections/route.ts       # Figma, Gemini and Sitecore configuration status
-      gemini-connection/route.ts # Minimal live Gemini API connectivity test
-      design-context/route.ts    # Reads one Figma frame over MCP
-      analyze/route.ts           # Analyzes the returned context with Gemini
-    globals.scss
-    layout.tsx
-    page.tsx
-  features/
-    studio/
-      studio-page.tsx            # UI state and workflow interactions
-      studio-page.module.scss    # Studio-specific styles
-  lib/
-    content-model.ts             # Shared schema and approved Sitecore field types
-    figma-url.ts                 # Shared, pure Figma URL parser
+  app/api/
+    connections/route.ts            # Figma + configured provider status
+    openrouter-connection/route.ts  # Minimal OpenRouter connectivity test
+    design-context/route.ts         # Read one selected frame via Figma MCP
+    analyze/route.ts                # Validate and analyze design context
+    sitecore-connection/route.ts    # OAuth + read-only Authoring API test
+    sitecore-template-tree/route.ts # Read direct children in /sitecore/templates
+    sitecore-create-component/route.ts # Explicitly approved Sitecore creation workflow
+  features/studio/                  # Guided stage UI and Sass module
+  lib/                              # Figma URL, content-model, tree and creation-plan schemas
   server/
-    config/env.ts                # Server-only environment parsing
-    integrations/
-      figma/figma-mcp-client.ts  # MCP connection and tool invocation
-      llm/gemini-content-model-analyzer.ts # Gemini provider adapter and prompt
-      llm/gemini-api-connection-check.ts   # Small REST probe for key/model/network
-    services/
-      connection-status.service.ts
-      content-model.service.ts   # Use case and runtime validation of Gemini output
-      design-context.service.ts
+    config/env.ts                   # Server-only environment configuration
+    integrations/figma/             # Figma Desktop MCP client
+    integrations/llm/               # OpenRouter analyzer and connection check
+    integrations/sitecore/          # Sitecore OAuth, GraphQL transport, connection test and template tree
+    services/                       # Workflow orchestration and creation verification
 ```
 
-### SOLID without overengineering
+The code uses focused modules and a small service layer. It intentionally avoids databases, queues, worker services, and unnecessary class layers for this POC.
 
-- **Single Responsibility:** UI state, HTTP handlers, Figma MCP, Gemini calls, validation, and workflow orchestration are kept separate.
-- **Open/Closed:** the analysis service depends on a small analyzer interface, so a provider can be replaced without changing the UI workflow.
-- **Liskov Substitution / Interface Segregation:** the analyzer port exposes only the operation this use case needs.
-- **Dependency Inversion:** application logic depends on the analyzer interface rather than Gemini SDK details.
+## Dependency-upgrade compatibility fixes
 
-These are small modules in one application; the POC does not need separate deployable services, a database, a queue, or a multi-agent framework.
+- The studio uses `PanelsTopLeft` from Lucide because `lucide-react` does not export a `Figma` icon.
+- Figma MCP tool content is treated as external data and narrowed from `unknown` at runtime before reading text/image blocks.
+
+After installing dependencies, run `pnpm typecheck` to validate against the versions resolved in your environment.
+
+## Dependencies
+
+The project is configured for the following version ranges:
+
+| Package | Version range |
+|---|---:|
+| `next` / `eslint-config-next` | `^16.4.0` |
+| `react` / `react-dom` | `^19.3.0` |
+| `@modelcontextprotocol/sdk` | `^1.32.1` |
+| `lucide-react` | `^1.55.0` |
+| `zod` | `^4.6.6` |
+| `eslint` | `^10.12.0` |
+| `sass` | `^1.105.1` |
+| `typescript` | `^7.0.2` |
+| `@types/node` | `^26.6.5` |
+| `@types/react` / `@types/react-dom` | `^19.3.0` |
+
+The MCP integration remains on the `@modelcontextprotocol/sdk` 1.x line.
 
 ## Requirements
 
-- Node.js 22 or newer
-- Figma Desktop with the relevant design open and Desktop MCP enabled
-- Google Gemini API key from Google AI Studio
-- SitecoreAI Environment Automation client credentials for the later authoring stage
-
-The Figma Desktop MCP endpoint is normally `http://127.0.0.1:3845/mcp`.
+- Node.js 22.13+ or 24+
+- Figma Desktop with Desktop MCP enabled (normally `http://127.0.0.1:3845/mcp`)
+- OpenRouter API key: https://openrouter.ai/keys
+- SitecoreAI Environment Automation credentials for the target environment
+- A target SitecoreAI instance with the built-in template paths used by this service (Standard template, Common Folder, Standard Rendering Parameters, Rendering Folder and JSON Rendering)
 
 ## Run locally
 
@@ -75,68 +94,38 @@ cp .env.example .env.local
 pnpm dev
 ```
 
-Open `http://localhost:3000`.
-
-Configure `.env.local`:
+Open `http://localhost:3000` and configure `.env.local`:
 
 ```dotenv
 FIGMA_MCP_URL=http://127.0.0.1:3845/mcp
-GEMINI_API_KEY=your-gemini-api-key
-GEMINI_MODEL=gemini-3.6-flash
+OPENROUTER_API_KEY=your-openrouter-api-key
+OPENROUTER_MODEL=openrouter/free
 
 SITECORE_AI_CM_HOST=https://your-instance.sitecorecloud.io
 SITECORE_AI_CLIENT_ID=your-environment-automation-client-id
 SITECORE_AI_CLIENT_SECRET=your-environment-automation-client-secret
+SITECORE_AI_RENDERINGS_PARENT_PATH=/sitecore/layout/Renderings/Feature
 ```
 
-`GEMINI_MODEL` is optional; the default is `gemini-3.6-flash`. Use a model name available to your Gemini API project if you choose to override it.
+Keep API keys and Sitecore credentials server-side. Never prefix them with `NEXT_PUBLIC_` and do not commit `.env.local`.
 
-Keep credentials server-side in `.env.local`. Never use `NEXT_PUBLIC_` for the Gemini API key or Sitecore client secret, and do not commit `.env.local`.
+## Safety behavior and limitations
 
-## Current functionality
+- The model is reviewed and edited by the user before creation; the model does not generate GraphQL mutations.
+- OpenRouter's free router avoids depending on one model endpoint, but free model availability and rate limits can vary.
+- Template tree browsing and connection tests are read-only.
+- Creation requires an explicit checkbox confirmation. Existing items are not overwritten.
+- Every created item is re-read by path and its returned ID is compared with the mutation result.
+- If creation partially fails, created items are left in place and reported; the app does not attempt potentially unsafe automatic rollback.
+- Sitecore component registration is created, but the corresponding Next.js frontend component is not generated/deployed. Page Builder availability, page creation, datasource content creation and publishing are outside the current POC scope.
 
-- **Validate link:** checks the Figma URL, file key, and selected `node-id` locally.
-- **Read design:** calls Figma Desktop MCP's `get_design_context` tool and displays the returned text context.
-- **Check connections:** checks Figma MCP connectivity and whether Gemini/Sitecore configuration values are present.
-- **Test Gemini API:** sends a tiny `Reply with exactly: OK` generation request directly to Google's Gemini REST API. This independently checks network connectivity, the configured API key, and model access without sending Figma design context or the analyzer schema. It reports response status, latency, and a redacted diagnostic.
-- **Analyze fields:** sends the selected design context to Gemini, requests JSON-structured output, validates it with Zod, and displays a reviewable proposal.
-- **Review proposal:** the user can adjust component/template names and field names/types. Repeated structures, evidence, confidence, rationales, and warnings are displayed to help review the model.
-- **No Sitecore writes:** the analysis stage does not create templates, renderings, content items, or layouts. Those belong to the next POC stage.
+After dependency upgrades, run:
 
-### Gemini service availability (HTTP 503)
+```powershell
+pnpm install
+pnpm typecheck
+pnpm lint
+pnpm build
+```
 
-Gemini can temporarily return `503 UNAVAILABLE` when a model is experiencing high demand. The analyzer retries transient service/rate-limit responses up to three attempts with a short exponential backoff. Invalid request (`400`) and authentication (`401`/`403`) errors are not retried. If the 503 persists, try again later or set `GEMINI_MODEL` to another stable model available to your API project (for example, `gemini-3.6-flash`).
-
-### Gemini network errors
-
-Use **Test Gemini API** before running the analyzer. This sends one minimal request with a 15-second timeout and does not send Figma context. A successful check means the configured model generated a tiny response with the configured key. An HTTP 400 points to a rejected model/request configuration; 401/403 points to key/permission problems; 404 indicates that the model wasn't found; 429 indicates quota/rate limiting; 5xx means Gemini was reached but returned a service error. A timeout or transport error points toward connectivity, DNS, proxy/VPN, firewall, or TLS inspection. The endpoint logs only the result metadata, never the key or test prompt.
-
-The analyzer also logs a short, redacted error-cause chain. Check that the machine running `pnpm dev` can reach `generativelanguage.googleapis.com:443`; a configured key alone does not prove network connectivity.
-
-### Content-model rules
-
-The analyzer proposes only editorial content fields using this approved list: `Single-Line Text`, `Multi-Line Text`, `Rich Text`, `Image`, `General Link`, `Checkbox`, and `Number`.
-
-It should not create fields for color, spacing, typography, border radius, CSS classes, or other presentation styling. It should not invent link URLs or hidden content. If repeated card/list items are found, they are represented as a reusable repeated structure rather than fixed fields such as `Card1Title`, `Card2Title`, and `Card3Title`.
-
-Gemini is asked for JSON output, and the complete content-model shape is validated independently by Zod before it is returned to the UI. Provider-side schema enforcement is intentionally omitted to avoid invalid nested-schema payloads. The design context is treated as untrusted data; instructions embedded in generated code are not followed. The route rejects contexts larger than 80,000 characters to keep a single POC analysis bounded.
-
-## Next implementation slice
-
-1. Verify SitecoreAI OAuth authentication and inspect the target environment's rendering/template schema.
-2. Create the approved data template and JSON rendering through SitecoreAI Authoring and Management API.
-3. Read back the created items and display their paths and IDs.
-
-Do not add functionality outside the defined scope of reading one selected design, inferring its Sitecore field model, creating the required SitecoreAI definitions, and verifying those definitions.
-
-Gemini connection test uses `maxOutputTokens: 128` so Gemini 3.x can complete internal thinking and return visible text. The previous budget of 8 could produce HTTP 200 without a text candidate.
-
-## Demo UI workflow
-
-The studio UI is organized as three dedicated stage screens in one focused workspace:
-
-1. **Source design** — validate the selected Figma frame URL, read the design context, and check Figma, Gemini, and Sitecore configuration.
-2. **Analyze fields** — run Gemini analysis, review and edit the component/template names and inferred fields, inspect evidence and warnings, and move back to the source as needed.
-3. **Sitecore output** — preview the proposed data source template and JSON rendering configuration. The screen explicitly identifies itself as a preview because Sitecore authoring mutations are not implemented yet; it does not claim to create items.
-
-The redesign uses larger typography, stronger contrast, roomier forms and field cards, responsive layouts, clear stage navigation, and visible completion indicators. The underlying Figma and Gemini workflow APIs and the scope of the POC are unchanged.
+Commit the generated `pnpm-lock.yaml` after verifying the resolved dependency graph in your environment.

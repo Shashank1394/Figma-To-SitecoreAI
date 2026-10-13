@@ -124,7 +124,7 @@ $red-soft: #fff0f1;
 .integrationRow { display: flex; align-items: flex-start; gap: 12px; padding: 18px 0; border-bottom: 1px solid #edf0f5; }
 .integrationIcon { display: grid; place-items: center; width: 39px; height: 39px; flex: 0 0 39px; border-radius: 12px; }
 .integrationFigma { color: #7852d9; background: #f0ebff; }
-.integrationGemini { color: #326fbd; background: #eaf3ff; }
+.integrationOpenRouter { color: #326fbd; background: #eaf3ff; }
 .integrationSitecore { color: #2c8295; background: #e8f7fa; }
 .integrationCopy { flex: 1; min-width: 0; padding-top: 1px; }
 .integrationCopy strong { display: block; color: #243653; font-size: 15px; font-weight: 800; }
@@ -269,6 +269,59 @@ $red-soft: #fff0f1;
 .pageFooter strong { color: #5c6981; font-weight: 900; letter-spacing: 1.1px; }
 .pageFooter > span:last-child { font-size: 12px; letter-spacing: 0; text-align: right; }
 
+
+.optionalLabel { display: inline-flex; vertical-align: middle; align-items: center; margin-left: 7px; padding: 3px 7px; border: 1px solid #dbe3ef; border-radius: 6px; color: #61718a; background: #f6f8fc; font-size: 10px; font-weight: 800; letter-spacing: .45px; text-transform: uppercase; }
+.optionalEmptyNote { padding: 16px 18px; border: 1px dashed #d5deeb; border-radius: 11px; color: #64738b; background: #f9fbfe; font-size: 13px; line-height: 1.65; }
+.creationPanel { margin-top: 24px; padding: 25px; border: 1px solid #dce4f0; border-radius: 17px; background: #fff; box-shadow: 0 5px 18px #172e5010; }
+.creationPanelHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.creationPanelHeader h2 { margin: 10px 0 6px; color: #1d2d49; font-size: 22px; letter-spacing: -.35px; }
+.creationPanelHeader p { max-width: 780px; margin: 0; color: #62718a; font-size: 14px; line-height: 1.7; }
+.creationTree { overflow: hidden; border: 1px solid #dce4ef; border-radius: 13px; background: #fbfcff; }
+.creationTreeRoot { display: flex; align-items: center; gap: 13px; padding: 17px 18px; border-bottom: 1px solid #e8edf5; color: #6555c9; background: #f4f2ff; }
+.creationTreeRoot > div { display: grid; min-width: 0; flex: 1; gap: 5px; }
+.creationTreeRoot strong { color: #263653; font-size: 15px; }
+.creationTreeRoot code { color: #66758c; font-size: 12px; overflow-wrap: anywhere; }
+.creationTreeRoot > span { padding: 5px 8px; border: 1px solid #dcd7ff; border-radius: 7px; color: #6855cb; background: #fff; font-size: 10px; font-weight: 800; text-transform: uppercase; white-space: nowrap; }
+.creationTreeChildren { display: grid; gap: 0; padding: 7px 18px 9px 32px; }
+.creationTreeRow { display: flex; align-items: center; gap: 12px; min-height: 58px; padding: 11px 12px; border-bottom: 1px solid #edf1f6; color: #71809a; }
+.creationTreeRow:last-child { border-bottom: 0; }
+.creationTreeRow > svg { flex: 0 0 19px; color: #7a69d8; }
+.creationTreeRow > div { display: grid; gap: 4px; }
+.creationTreeRow strong { color: #2c3a55; font-size: 14px; font-weight: 750; }
+.creationTreeRow small { color: #7a879c; font-size: 12px; line-height: 1.45; }
+.creationTreeNested { margin-left: 31px; padding-left: 15px; border-left: 2px solid #e4defe; }
+.creationRenderingsNote { display: flex; align-items: flex-start; gap: 13px; padding: 17px 19px; border-top: 1px solid #e5eaf2; color: #367c97; background: #f2fbfd; }
+.creationRenderingsNote > svg { flex: 0 0 21px; margin-top: 2px; }
+.creationRenderingsNote > div { min-width: 0; }
+.creationRenderingsNote strong { color: #245b72; font-size: 14px; }
+.creationRenderingsNote p { margin: 6px 0; color: #375b6b; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12px; overflow-wrap: anywhere; }
+.creationRenderingsNote small { color: #628190; font-size: 12px; line-height: 1.5; }
+.creationConfirm { display: flex; align-items: flex-start; gap: 12px; margin-top: 22px; padding: 16px 18px; border: 1px solid #dfe6f1; border-radius: 12px; background: #f9fbfe; cursor: pointer; }
+.creationConfirm input { width: 18px; height: 18px; flex: 0 0 18px; margin-top: 3px; accent-color: #6555d9; }
+.creationConfirm span { display: grid; gap: 5px; }
+.creationConfirm strong { color: #2b3954; font-size: 14px; line-height: 1.5; }
+.creationConfirm small { color: #6f7d94; font-size: 12px; line-height: 1.6; }
+.creationActions { display: flex; align-items: center; gap: 14px; margin-top: 17px; }
+.creationActions > span { color: #8390a5; font-size: 12px; line-height: 1.5; }
+.creationActions .buttonPrimary { min-height: 46px; }
+.creationNotice { display: flex; align-items: flex-start; gap: 13px; margin-top: 18px; padding: 17px 19px; border: 1px solid #d6e3f1; border-radius: 12px; color: #50708d; background: #f6faff; }
+.creationNotice > svg { flex: 0 0 21px; margin-top: 1px; }
+.creationNotice > div { min-width: 0; flex: 1; }
+.creationNotice strong { display: block; color: #334d6d; font-size: 14px; }
+.creationNotice p { margin: 6px 0 0; color: #5e7691; font-size: 13px; line-height: 1.65; }
+.creationNoticeError { border-color: #f0c9c8; color: #ad3935; background: #fff8f8; }
+.creationNoticeError strong { color: #943b37; }
+.creationNoticeError p { color: #9b615e; }
+.creationNoticeSuccess { border-color: #c7ead4; color: #27764a; background: #f4fcf7; }
+.creationNoticeSuccess strong { color: #206a40; }
+.creationNoticeSuccess p { color: #4f8063; }
+.createdItemList { display: grid; gap: 9px; margin-top: 14px; }
+.createdItemList > div { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid #e4eaf2; border-radius: 9px; background: #fff; }
+.createdItemList strong { color: #33445e; font-size: 13px; }
+.createdItemList strong small { color: #7c8aa0; font-size: 11px; font-weight: 600; }
+.createdItemList code { color: #60738f; font-size: 12px; overflow-wrap: anywhere; }
+.createdItemList > div > small { color: #8b97a9; font-size: 11px; }
+
 .spin { animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -279,6 +332,7 @@ $red-soft: #fff0f1;
   .panel { padding: 22px; }
   .fieldsGrid { grid-template-columns: 1fr; }
   .outputCardsGrid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .creationPanel { padding: 20px; }
 }
 
 @media (max-width: 950px) {
@@ -370,11 +424,83 @@ $red-soft: #fff0f1;
   .pageFooter > span:last-child { text-align: left; }
 }
 
-.geminiTestResult { display: flex; align-items: flex-start; gap: 12px; margin-top: 16px; padding: 15px 16px; border: 1px solid; border-radius: 11px; }
-.geminiTestResult > svg { flex: 0 0 20px; margin-top: 1px; }
-.geminiTestResult > div { min-width: 0; }
-.geminiTestResult strong { display: block; font-size: 14px; font-weight: 800; }
-.geminiTestResult p { margin: 6px 0; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
-.geminiTestResult span { display: block; font-size: 11px; line-height: 1.5; opacity: .82; overflow-wrap: anywhere; }
-.geminiTestSuccess { color: #1d6d4a; background: #f0fbf5; border-color: #cee9d8; }
-.geminiTestFailure { color: #9c3443; background: #fff4f5; border-color: #f0d2d8; }
+.integrationTestResult { display: flex; align-items: flex-start; gap: 12px; margin-top: 16px; padding: 15px 16px; border: 1px solid; border-radius: 11px; }
+.integrationTestResult > svg { flex: 0 0 20px; margin-top: 1px; }
+.integrationTestResult > div { min-width: 0; }
+.integrationTestResult strong { display: block; font-size: 14px; font-weight: 800; }
+.integrationTestResult p { margin: 6px 0; font-size: 13px; line-height: 1.55; overflow-wrap: anywhere; }
+.integrationTestResult span { display: block; font-size: 11px; line-height: 1.5; opacity: .82; overflow-wrap: anywhere; }
+.integrationTestSuccess { color: #1d6d4a; background: #f0fbf5; border-color: #cee9d8; }
+.integrationTestFailure { color: #9c3443; background: #fff4f5; border-color: #f0d2d8; }
+
+/* Sitecore template destination tree */
+.templateDestinationPanel { margin-top: 23px; }
+.templateDestinationHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 22px; margin-bottom: 22px; }
+.templateDestinationHeader > div:first-child { min-width: 0; }
+.templateDestinationHeader h2 { margin: 9px 0 8px; font-size: 23px; line-height: 1.25; letter-spacing: -.45px; }
+.templateDestinationHeader p { max-width: 720px; margin: 0; color: $muted; font-size: 15px; line-height: 1.7; }
+.templateDestinationHeader p code { padding: 2px 5px; border-radius: 5px; background: #f0f3f9; color: #374563; font-size: .92em; }
+.templateDestinationHeader > .buttonSecondary { flex: 0 0 auto; }
+.templateDestinationEyebrow { display: flex; align-items: center; gap: 8px; color: $violet-dark; font-size: 11px; line-height: 1.3; letter-spacing: 1.25px; font-weight: 850; }
+.templateTreeMessage { display: flex; align-items: center; gap: 11px; margin: 14px 0; padding: 17px 18px; border: 1px solid #e3e8f2; border-radius: 12px; background: #f8faff; color: #53627c; font-size: 14px; font-weight: 650; }
+.templateTreeError { display: flex; align-items: flex-start; gap: 12px; margin: 14px 0; padding: 17px 18px; border: 1px solid #f1cfd6; border-radius: 12px; color: #923746; background: #fff5f6; }
+.templateTreeError > svg { flex: 0 0 18px; margin-top: 2px; }
+.templateTreeError strong { display: block; font-size: 14px; }
+.templateTreeError p { margin: 6px 0 8px; font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.templateTreeLayout { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(260px, .8fr); gap: 18px; align-items: start; }
+.templateTreeBrowser { min-width: 0; border: 1px solid #dfe6f1; border-radius: 14px; overflow: hidden; background: #fff; }
+.templateTreeBrowserHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 52px; padding: 13px 16px; border-bottom: 1px solid #e9edf4; background: #f8faff; }
+.templateTreeBrowserHeader strong { color: #293955; font-size: 14px; font-weight: 800; }
+.templateTreeBrowserHeader span { color: #16865d; font-size: 11px; line-height: 1.3; font-weight: 800; white-space: nowrap; }
+.templateTreeList { max-height: 450px; overflow: auto; padding: 10px 8px; scrollbar-color: #cbd4e2 #f7f9fc; scrollbar-width: thin; }
+.templateTreeRow { display: flex; align-items: center; gap: 5px; min-height: 43px; padding-top: 3px; padding-bottom: 3px; padding-right: 10px; border: 1px solid transparent; border-radius: 8px; }
+.templateTreeRow:hover { background: #f7f8fc; }
+.templateTreeRowSelected { border-color: #d4cdfd; background: #f3f0ff; }
+.templateTreeRowSelected:hover { background: #f0edff; }
+.templateTreeToggle { display: grid; place-items: center; width: 25px; height: 28px; flex: 0 0 25px; border: 0; border-radius: 6px; color: #7d8aa0; background: transparent; cursor: pointer; }
+.templateTreeToggle:hover { color: $violet-dark; background: #ebe7ff; }
+.templateTreeToggleSpacer { width: 25px; flex: 0 0 25px; }
+.templateTreeFolderButton, .templateTreeNonSelectable { display: flex; align-items: center; gap: 9px; min-width: 0; flex: 1; padding: 4px 5px; border: 0; text-align: left; background: transparent; color: #8c9ab0; }
+.templateTreeFolderButton { color: #6956e8; cursor: pointer; border-radius: 6px; }
+.templateTreeFolderButton:hover { background: #ece9ff; }
+.templateTreeFolderButton[aria-pressed="true"] { color: #5140cf; }
+.templateTreeFolderButton > svg, .templateTreeNonSelectable > svg { flex: 0 0 17px; }
+.templateTreeNonSelectable { color: #9aa5b6; }
+.templateTreeItemCopy { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.templateTreeItemCopy strong { color: #273650; font-size: 13px; line-height: 1.3; font-weight: 720; overflow-wrap: anywhere; }
+.templateTreeFolderButton[aria-pressed="true"] .templateTreeItemCopy strong { color: #4d3bc7; }
+.templateTreeItemCopy small { color: #8a96aa; font-size: 10px; line-height: 1.25; font-weight: 600; overflow-wrap: anywhere; }
+.templateTreeSelectedIcon { flex: 0 0 17px; margin-left: 4px; color: #16865d; }
+.templateTreeChildren { margin-left: 0; }
+.templateTreeEmptyChildren { padding-top: 8px; padding-bottom: 8px; color: #8b97aa; font-size: 12px; font-style: italic; }
+.templateTreeHint { margin: 0; padding: 12px 16px; border-top: 1px solid #e9edf4; color: #7b899f; background: #fafbfe; font-size: 12px; line-height: 1.5; }
+.templateTreeSelection { min-width: 0; padding: 21px; border: 1px solid #e1e6f0; border-radius: 14px; background: linear-gradient(150deg, #fff, #fbfaff); }
+.templateTreeSelectionIcon { display: grid; place-items: center; width: 43px; height: 43px; margin-bottom: 17px; border-radius: 13px; color: $violet-dark; background: $violet-soft; }
+.templateTreeSelectionLabel { display: block; color: #8b96aa; font-size: 10px; letter-spacing: 1.2px; font-weight: 850; }
+.templateTreeSelection h3 { margin: 9px 0 8px; color: #24334f; font-size: 20px; line-height: 1.3; letter-spacing: -.3px; overflow-wrap: anywhere; }
+.templateTreeSelection > p { margin: 8px 0 0; color: $muted; font-size: 13px; line-height: 1.65; }
+.templateTreePath { display: block; margin-top: 10px; padding: 10px 11px; border: 1px solid #e5e7f3; border-radius: 8px; color: #4e41b8; background: #f7f5ff; font-size: 11px; line-height: 1.6; overflow-wrap: anywhere; white-space: normal; }
+.templateTreeSelection dl { display: grid; gap: 12px; margin: 17px 0 0; }
+.templateTreeSelection dl > div { display: grid; gap: 5px; }
+.templateTreeSelection dt { color: #8692a7; font-size: 11px; font-weight: 700; }
+.templateTreeSelection dd { margin: 0; color: #3d4b65; font-size: 12px; line-height: 1.55; overflow-wrap: anywhere; }
+.templateTreeSelectionConfirmed { display: flex; align-items: flex-start; gap: 8px; margin-top: 17px; padding: 11px 12px; border: 1px solid #d0ebdd; border-radius: 9px; color: #1a7751; background: #effaf4; font-size: 12px; line-height: 1.55; font-weight: 650; }
+.templateTreeSelectionConfirmed svg { flex: 0 0 16px; margin-top: 1px; }
+
+@media (max-width: 950px) {
+  .templateTreeLayout { grid-template-columns: 1fr; }
+  .templateTreeSelection { padding: 18px; }
+  .templateDestinationHeader { flex-direction: column; }
+}
+
+@media (max-width: 720px) {
+  .templateDestinationPanel { padding: 18px; }
+  .templateDestinationHeader h2 { font-size: 20px; }
+  .templateDestinationHeader p { font-size: 14px; }
+  .templateDestinationHeader > .buttonSecondary { width: 100%; }
+  .templateTreeBrowserHeader { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .templateTreeList { max-height: 360px; padding-inline: 4px; }
+  .templateTreeRow { padding-right: 5px; }
+  .templateTreeItemCopy strong { font-size: 12px; }
+  .templateTreeSelection { padding: 16px; }
+}

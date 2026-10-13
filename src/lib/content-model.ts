@@ -56,7 +56,7 @@ function ensureUniqueFieldNames(
     const normalizedName = field.name.toLowerCase();
     if (seen.has(normalizedName)) {
       context.addIssue({
-        code: z.ZodIssueCode.custom,
+        code: "custom",
         path: [...path, index, "name"],
         message: `Field name "${field.name}" is duplicated.`,
       });
@@ -72,10 +72,14 @@ export const contentModelSchema = z
     summary: z.string().trim().min(1).max(400),
     fields: z.array(contentFieldSchema).max(30),
     repeatedStructures: z.array(repeatedStructureSchema).max(10),
+    // Rendering parameters are separate from editorial data and are created only when
+    // the design clearly indicates an editor-controlled presentation option.
+    renderingParameters: z.array(contentFieldSchema).max(20).default([]),
     warnings: z.array(z.string().trim().min(1).max(400)).max(12),
   })
   .superRefine((model, context) => {
     ensureUniqueFieldNames(model.fields, ["fields"], context);
+    ensureUniqueFieldNames(model.renderingParameters, ["renderingParameters"], context);
 
     const repeatedNames = new Set<string>();
     const itemTemplateNames = new Set<string>();
@@ -85,7 +89,7 @@ export const contentModelSchema = z
       const groupName = structure.name.toLowerCase();
       if (repeatedNames.has(groupName)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["repeatedStructures", index, "name"],
           message: `Repeated structure name "${structure.name}" is duplicated.`,
         });
@@ -95,7 +99,7 @@ export const contentModelSchema = z
       const itemTemplateName = structure.itemTemplateName.toLowerCase();
       if (itemTemplateNames.has(itemTemplateName)) {
         context.addIssue({
-          code: z.ZodIssueCode.custom,
+          code: "custom",
           path: ["repeatedStructures", index, "itemTemplateName"],
           message: `Item template name "${structure.itemTemplateName}" is duplicated.`,
         });

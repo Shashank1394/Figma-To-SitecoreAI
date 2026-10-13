@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { MAX_DESIGN_CONTEXT_LENGTH } from "@/lib/content-model";
 import { getServerConfig } from "@/server/config/env";
-import { GeminiContentModelAnalyzer } from "@/server/integrations/llm/gemini-content-model-analyzer";
+import { OpenRouterContentModelAnalyzer } from "@/server/integrations/llm/openrouter-content-model-analyzer";
 import { ContentModelService } from "@/server/services/content-model.service";
 
 export const runtime = "nodejs";
@@ -36,21 +36,22 @@ export async function POST(request: Request) {
 
   try {
     const config = getServerConfig();
-    if (!config.geminiApiKey) {
+    if (!config.openRouterApiKey) {
       return NextResponse.json(
-        { error: "Gemini is not configured. Add GEMINI_API_KEY to .env.local, then restart the development server." },
+        { error: "OpenRouter is not configured. Add OPENROUTER_API_KEY to .env.local, then restart the development server." },
         { status: 503 },
       );
     }
 
-    const analyzer = new GeminiContentModelAnalyzer(config.geminiApiKey, config.geminiModel);
+    const analyzer = new OpenRouterContentModelAnalyzer(config.openRouterApiKey, config.openRouterModel);
     const service = new ContentModelService(analyzer);
     const contentModel = await service.analyze(parsedBody.data.designContext);
 
-    return NextResponse.json({ contentModel, analyzedAt: new Date().toISOString(), model: config.geminiModel });
+    return NextResponse.json({ contentModel, analyzedAt: new Date().toISOString(), model: config.openRouterModel });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Could not analyze the selected design.";
     const status = message.startsWith("The Figma context is too large") ? 413 : 502;
+    console.error("[FrameForge] OpenRouter content-model analysis failed", { message: message.slice(0, 400) });
     return NextResponse.json({ error: message }, { status });
   }
 }

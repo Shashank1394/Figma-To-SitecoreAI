@@ -28,7 +28,7 @@ export class ContentModelService {
     const result = contentModelSchema.safeParse(proposedModel);
 
     if (!result.success) {
-      throw new Error("Gemini's proposal did not match the required content-model schema. Analyze the design again or select a more specific frame.");
+      throw new Error("OpenRouter's proposal did not match the required content-model schema. Analyze the design again or select a more specific frame.");
     }
 
     return result.data;

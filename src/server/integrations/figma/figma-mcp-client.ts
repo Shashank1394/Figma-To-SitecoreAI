@@ -76,11 +76,19 @@ export class FigmaMcpClient {
 
       const args = buildDesignContextArguments(tool as ToolDefinition, selection);
       const result = await client.callTool({ name: tool.name, arguments: args });
-      const content = result.content ?? [];
-      const textParts = content.flatMap((block) =>
-        block.type === "text" && block.text.trim() ? [block.text] : [],
-      );
-      const imageCount = content.filter((block) => block.type === "image").length;
+      // MCP tool output is external data. Narrow its shape at runtime instead of
+      // assuming a particular SDK declaration for result.content.
+      const rawContent: unknown = (result as { content?: unknown }).content;
+      const content: unknown[] = Array.isArray(rawContent) ? rawContent : [];
+      const textParts = content.flatMap((block: unknown): string[] => {
+        if (!isRecord(block) || block.type !== "text" || typeof block.text !== "string") {
+          return [];
+        }
+        return block.text.trim() ? [block.text] : [];
+      });
+      const imageCount = content.filter(
+        (block: unknown) => isRecord(block) && block.type === "image",
+      ).length;
       const structuredContent = (result as { structuredContent?: unknown }).structuredContent;
       const text = textParts.join("\n\n").trim() || stringifyStructuredContent(structuredContent);
 
@@ -103,6 +111,10 @@ export class FigmaMcpClient {
       await client.close().catch(() => undefined);
     }
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 function buildDesignContextArguments(
